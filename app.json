@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Flashcard",
+    "slug": "flashcard-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.kapph.flashcardmobile"
+    },
+    "web": {},
+    "extra": {
+      "eas": {
+        "projectId": "c3b9e316-84ff-4f5b-94a3-e58244fdae14"
+      }
+    },
+    "owner": "kapph"
+  }
+}
