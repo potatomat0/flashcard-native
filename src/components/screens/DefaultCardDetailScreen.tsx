@@ -4,6 +4,7 @@ import { RouteProp, useNavigation } from '@react-navigation/native';
 import { MainStackParamList } from '../../navigation/RootNavigator';
 import api from '../../services/api';
 import colors from '../../themes/colors';
+import WakeServerModalGate from '../common/WakeServerModalGate';
 import { transformCloudinary } from '../../services/image';
 import ModalBase from '../common/ModalBase';
 import * as Haptics from 'expo-haptics';
@@ -88,6 +89,7 @@ export default function DefaultCardDetailScreen({ route }: Props) {
 
   return (
     <View style={styles.container}>
+      <WakeServerModalGate />
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <Text style={styles.title}>{card.name} {card.word_type ? `(${card.word_type})` : ''}</Text>
         {!!card.url && <Image source={{ uri: transformCloudinary(card.url, { w: 800, q: 'auto', f: 'auto' }) || card.url }} style={styles.image} />}

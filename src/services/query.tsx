@@ -16,7 +16,15 @@ const queryClient = new QueryClient({
   },
 });
 
-const persister = createAsyncStoragePersister({ storage: AsyncStorage });
+const PERSIST_KEY = 'REACT_QUERY_OFFLINE_CACHE';
+const persister = createAsyncStoragePersister({ storage: AsyncStorage, key: PERSIST_KEY });
+
+export async function clearQueryCachePersist() {
+  try {
+    queryClient.clear();
+    await AsyncStorage.removeItem(PERSIST_KEY);
+  } catch {}
+}
 
 export default function QueryProvider({ children }: { children: React.ReactNode }) {
   return (
@@ -27,4 +35,3 @@ export default function QueryProvider({ children }: { children: React.ReactNode 
 }
 
 export { queryClient };
-

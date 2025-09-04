@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { transformCloudinary } from '../../services/image';
 import api from '../../services/api';
 import colors from '../../themes/colors';
+import WakeServerModalGate from '../common/WakeServerModalGate';
 import * as Haptics from 'expo-haptics';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { MainStackParamList } from '../../navigation/RootNavigator';
@@ -57,6 +58,7 @@ export default function DashboardScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
+      <WakeServerModalGate />
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Dashboard</Text>

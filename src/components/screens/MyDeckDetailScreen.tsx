@@ -8,6 +8,7 @@ import WORD_TYPES from '../../data/wordTypes';
 import LabeledInput from '../common/LabeledInput';
 import * as Haptics from 'expo-haptics';
 import colors from '../../themes/colors';
+import WakeServerModalGate from '../common/WakeServerModalGate';
 import * as ImagePicker from 'expo-image-picker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../services/queryKeys';
@@ -131,20 +132,34 @@ export default function MyDeckDetailScreen({ route }: Props) {
   };
 
   const upsertCard = async () => {
-    const payload = {
+    const payload: any = {
       name: cName.trim(),
       definition: cDef.trim(),
-      word_type: cType.trim(),
-      hint: cHint.trim(),
-      category: cCats.split(',').map((s) => s.trim()).filter(Boolean),
-      url: cUrl.trim(),
     };
+    const wt = cType.trim();
+    const ht = cHint.trim();
+    const cats = cCats.split(',').map((s) => s.trim()).filter(Boolean);
+    const urlTrim = cUrl.trim();
+    if (wt) payload.word_type = wt;
+    if (ht) payload.hint = ht;
+    if (cats.length) payload.category = cats;
+    if (urlTrim) payload.url = urlTrim; // omit empty to allow backend default
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       if (cardModal.editing) {
         await api.patch(`/api/cards/${cardModal.editing._id}`, payload);
       } else {
-        await api.post(`/api/decks/${deckId}/cards`, payload);
+        const { data } = await api.post(`/api/decks/${deckId}/cards`, payload);
+        const createdId = (data && (data._id || (Array.isArray(data) ? data[0]?._id : undefined))) as string | undefined;
+        // Close modal first, then optionally navigate to the new card
+        setCardModal({ visible: false, editing: null });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.deckCards(deckId, page, 10) });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.deck(deckId) });
+        await queryClient.invalidateQueries({ queryKey: ['search-cards'] as any });
+        if (createdId) {
+          navigation.navigate('MyCardDetail', { cardId: createdId });
+          return;
+        }
       }
       setCardModal({ visible: false, editing: null });
       await queryClient.invalidateQueries({ queryKey: queryKeys.deckCards(deckId, page, 10) });
@@ -201,6 +216,8 @@ export default function MyDeckDetailScreen({ route }: Props) {
           await queryClient.invalidateQueries({ queryKey: queryKeys.deckCards(deckId, page, 10) });
           await queryClient.invalidateQueries({ queryKey: queryKeys.deck(deckId) });
           await queryClient.invalidateQueries({ queryKey: ['search-cards'] as any });
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert('Deleted', 'Card removed successfully');
         } catch { Alert.alert('Delete failed'); }
       }}
     ]);
@@ -208,6 +225,7 @@ export default function MyDeckDetailScreen({ route }: Props) {
 
   return (
     <View style={styles.container}>
+      <WakeServerModalGate />
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>{deck?.name || 'Deck'}</Text>

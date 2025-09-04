@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert, Keyboard } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { AuthStackParamList } from '../../navigation/RootNavigator';
@@ -7,6 +7,9 @@ import LabeledInput from '../common/LabeledInput';
 import colors from '../../themes/colors';
 import DismissKeyboardView from '../common/DismissKeyboardView';
 import * as Haptics from 'expo-haptics';
+import ModalBase from '../common/ModalBase';
+import { ActivityIndicator } from 'react-native';
+import { pingServer } from '../../services/api';
 
 type Props = {
   navigation: StackNavigationProp<AuthStackParamList, 'Login'>;
@@ -31,6 +34,28 @@ export default function LoginScreen({ navigation }: Props) {
 
   const isValid = !emailError && !passwordError;
 
+  // Wake-up modal if ping takes longer than 2s
+  const [wakeupVisible, setWakeupVisible] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    let showed = false;
+    const showTimer = setTimeout(async () => {
+      if (!mounted) return;
+      showed = true;
+      setWakeupVisible(true);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    }, 2000);
+    (async () => {
+      await pingServer();
+      clearTimeout(showTimer);
+      if (mounted && showed) {
+        setWakeupVisible(false);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    })();
+    return () => { mounted = false; clearTimeout(showTimer); };
+  }, []);
+
   const onSubmit = async () => {
     if (!isValid) return;
     setLoading(true);
@@ -47,6 +72,12 @@ export default function LoginScreen({ navigation }: Props) {
 
   return (
     <DismissKeyboardView style={styles.container}>
+      <ModalBase visible={wakeupVisible} onRequestClose={() => {}}>
+        <View style={{ alignItems: 'center', gap: 10 }}>
+          <ActivityIndicator size="large" color="#000" />
+          <Text style={{ fontWeight: '900', textAlign: 'center' }}>The server is waking up, please wait for a minute…</Text>
+        </View>
+      </ModalBase>
       <Text style={styles.title}>Login</Text>
       <Text style={styles.subtitle}>Access your flashcards securely</Text>
 

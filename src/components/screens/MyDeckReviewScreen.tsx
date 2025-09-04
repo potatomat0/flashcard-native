@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Alert } from 'react-native';
 import { RouteProp, useNavigation } from '@react-navigation/native';
 import colors from '../../themes/colors';
+import WakeServerModalGate from '../common/WakeServerModalGate';
 import api from '../../services/api';
 import * as Haptics from 'expo-haptics';
 import ModalBase from '../common/ModalBase';
@@ -37,6 +38,23 @@ export default function MyDeckReviewScreen({ route }: Props) {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [selectedArchive, setSelectedArchive] = useState<Record<string, boolean>>({});
 
+  // Stats for summary visualization
+  const [stats, setStats] = useState({
+    flashcard: { done: 0, easy: 0, medium: 0, hard: 0 },
+    mcq: { done: 0, correct: 0, wrong: 0 },
+    fill: { done: 0, correct: 0, wrong: 0 },
+  });
+
+  const totals = useMemo(() => ({
+    flashcard: (session.flashcard || []).length,
+    mcq: (session.mcq || []).length,
+    fill: (session.fillInTheBlank || []).length,
+  }), [session]);
+
+  const goSummary = () => {
+    (navigation as any).navigate('MyDeckReviewSummary', { deckId, stats, totals });
+  };
+
   const next = () => {
     setFlipped(false);
     setShowHint(false);
@@ -47,7 +65,7 @@ export default function MyDeckReviewScreen({ route }: Props) {
     else {
       const count = Object.keys(archiveCandidates).length;
       if (count > 0) setShowArchiveModal(true);
-      else navigation.goBack();
+      else goSummary();
     }
   };
 
@@ -64,6 +82,16 @@ export default function MyDeckReviewScreen({ route }: Props) {
     } catch (e: any) {
       // Non-blocking
     } finally {
+      // Update stats per level
+      setStats(prev => ({
+        ...prev,
+        flashcard: {
+          done: prev.flashcard.done + 1,
+          easy: prev.flashcard.easy + (level === 'easy' ? 1 : 0),
+          medium: prev.flashcard.medium + (level === 'medium' ? 1 : 0),
+          hard: prev.flashcard.hard + (level === 'hard' ? 1 : 0),
+        },
+      }));
       next();
     }
   };
@@ -86,9 +114,10 @@ export default function MyDeckReviewScreen({ route }: Props) {
 
   return (
     <View style={styles.container}>
+      <WakeServerModalGate />
       <View style={styles.headerRow}>
         <Text style={styles.title}>Item {index + 1} / {queue.length}</Text>
-        <Pressable style={styles.skipBtn} onPress={() => navigation.goBack()}><Text style={styles.skipText}>Exit</Text></Pressable>
+        <Pressable style={styles.skipBtn} onPress={() => (navigation as any).navigate('MyDeckReviewSummary', { deckId, stats, totals })}><Text style={styles.skipText}>Exit</Text></Pressable>
       </View>
 
       {current.type === 'flashcard' && (
@@ -146,6 +175,14 @@ export default function MyDeckReviewScreen({ route }: Props) {
                     if (correct) await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                     else await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
                     await submitResultApi(current.item.card_id, correct, current.item.prompt);
+                    setStats(prev => ({
+                      ...prev,
+                      mcq: {
+                        done: prev.mcq.done + 1,
+                        correct: prev.mcq.correct + (correct ? 1 : 0),
+                        wrong: prev.mcq.wrong + (!correct ? 1 : 0),
+                      },
+                    }));
                   }}
                 >
                   <Text style={styles.optionText}>{opt}</Text>
@@ -178,6 +215,14 @@ export default function MyDeckReviewScreen({ route }: Props) {
               if (correct) await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               else await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
               await submitResultApi(current.item.card_id, correct, current.item.prompt);
+              setStats(prev => ({
+                ...prev,
+                fill: {
+                  done: prev.fill.done + 1,
+                  correct: prev.fill.correct + (correct ? 1 : 0),
+                  wrong: prev.fill.wrong + (!correct ? 1 : 0),
+                },
+              }));
             }}>
               <Text style={styles.primaryText}>Submit</Text>
             </Pressable>
@@ -215,11 +260,11 @@ export default function MyDeckReviewScreen({ route }: Props) {
             for (const id of Object.keys(selectedArchive)) {
               if (selectedArchive[id]) await queryClient.invalidateQueries({ queryKey: queryKeys.card(id) });
             }
-            navigation.goBack();
+            goSummary();
           }}>
             <Text style={styles.primaryText}>Confirm</Text>
           </Pressable>
-          <Pressable style={[styles.primaryBtn, { flex: 1, backgroundColor: '#fff' }]} onPress={() => { setShowArchiveModal(false); navigation.goBack(); }}>
+          <Pressable style={[styles.primaryBtn, { flex: 1, backgroundColor: '#fff' }]} onPress={() => { setShowArchiveModal(false); goSummary(); }}>
             <Text style={styles.primaryText}>Skip</Text>
           </Pressable>
         </View>

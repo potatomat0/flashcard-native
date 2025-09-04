@@ -46,3 +46,13 @@ api.interceptors.response.use(
 
 export default api;
 
+// Quietly ping server to wake up free hosting (Render)
+export async function pingServer(): Promise<boolean> {
+  try {
+    // Hitting root path is sufficient to wake the server
+    await api.get('/', { timeout: 15000 });
+    return true;
+  } catch {
+    return false;
+  }
+}

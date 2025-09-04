@@ -6,6 +6,7 @@ import RegisterScreen from '../components/screens/RegisterScreen';
 import DashboardScreen from '../components/screens/DashboardScreen';
 import { useAuth } from '../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
+import colors from '../themes/colors';
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -27,13 +28,19 @@ type MyDecksParamList = {
   MyCardDetail: { cardId: string };
   MyDeckReviewSetup: { deckId: string };
   MyDeckReview: { deckId: string; session: any };
+  MyDeckReviewSummary: { deckId: string; stats: any; totals: any };
 };
 const MyDecksStack = createStackNavigator<MyDecksParamList>();
 const Tab = createBottomTabNavigator();
 
 function AuthNavigator() {
   return (
-    <AuthStack.Navigator>
+    <AuthStack.Navigator screenOptions={{
+      headerStyle: { backgroundColor: colors.primary },
+      headerTitleStyle: { fontSize: 16, fontWeight: '900', color: '#000' },
+      headerTintColor: '#000',
+      headerShadowVisible: false,
+    }}>
       <AuthStack.Screen name="Login" component={LoginScreen} options={{ headerTitle: 'Login' }} />
       <AuthStack.Screen name="Register" component={RegisterScreen} options={{ headerTitle: 'Register' }} />
     </AuthStack.Navigator>
@@ -42,7 +49,12 @@ function AuthNavigator() {
 
 function ExploreNavigator() {
   return (
-    <ExploreStack.Navigator>
+    <ExploreStack.Navigator screenOptions={{
+      headerStyle: { backgroundColor: colors.primary },
+      headerTitleStyle: { fontSize: 16, fontWeight: '900', color: '#000' },
+      headerTintColor: '#000',
+      headerShadowVisible: false,
+    }}>
       <ExploreStack.Screen name="ExploreList" component={DashboardScreen} options={{ headerTitle: 'Default Decks' }} />
       <ExploreStack.Screen name="DefaultDeck" component={require('../components/screens/DefaultDeckDetailScreen').default} options={{ headerTitle: 'Default Deck' }} />
       <ExploreStack.Screen name="DefaultCard" component={require('../components/screens/DefaultCardDetailScreen').default} />
@@ -56,15 +68,22 @@ const MyDeckDetailScreen = require('../components/screens/MyDeckDetailScreen').d
 const MyCardDetailScreen = require('../components/screens/MyCardDetailScreen').default;
 const MyDeckReviewSetupScreen = require('../components/screens/MyDeckReviewSetupScreen').default;
 const MyDeckReviewScreen = require('../components/screens/MyDeckReviewScreen').default;
+const MyDeckReviewSummaryScreen = require('../components/screens/MyDeckReviewSummaryScreen').default;
 
 function MyDecksNavigator() {
   return (
-    <MyDecksStack.Navigator>
+    <MyDecksStack.Navigator screenOptions={{
+      headerStyle: { backgroundColor: colors.primary },
+      headerTitleStyle: { fontSize: 16, fontWeight: '900', color: '#000' },
+      headerTintColor: '#000',
+      headerShadowVisible: false,
+    }}>
       <MyDecksStack.Screen name="MyDecksList" component={MyDecksListScreen} options={{ headerTitle: 'My Decks' }} />
       <MyDecksStack.Screen name="MyDeckDetail" component={MyDeckDetailScreen} options={{ headerTitle: 'Deck' }} />
       <MyDecksStack.Screen name="MyCardDetail" component={MyCardDetailScreen} options={{ headerTitle: 'Card' }} />
       <MyDecksStack.Screen name="MyDeckReviewSetup" component={MyDeckReviewSetupScreen} options={{ headerTitle: 'Start Review' }} />
       <MyDecksStack.Screen name="MyDeckReview" component={MyDeckReviewScreen} options={{ headerTitle: 'Review' }} />
+      <MyDecksStack.Screen name="MyDeckReviewSummary" component={MyDeckReviewSummaryScreen} options={{ headerTitle: 'Summary' }} />
     </MyDecksStack.Navigator>
   );
 }

@@ -6,6 +6,7 @@ import { MainStackParamList } from '../../navigation/RootNavigator';
 import api from '../../services/api';
 import { transformCloudinary } from '../../services/image';
 import colors from '../../themes/colors';
+import WakeServerModalGate from '../common/WakeServerModalGate';
 import ModalBase from '../common/ModalBase';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'react-native';
@@ -120,6 +121,7 @@ export default function DefaultDeckReviewScreen({ route }: Props) {
 
   return (
     <View style={styles.container}>
+      <WakeServerModalGate />
       <View style={styles.headerRow}>
         <Text style={styles.title}>Card {index + 1} / {queue.length}</Text>
         <Pressable style={styles.skipBtn} onPress={() => navigation.goBack()}><Text style={styles.skipText}>Skip Session</Text></Pressable>

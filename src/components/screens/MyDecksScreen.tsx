@@ -6,6 +6,7 @@ import ModalBase from '../common/ModalBase';
 import LabeledInput from '../common/LabeledInput';
 import * as Haptics from 'expo-haptics';
 import colors from '../../themes/colors';
+import WakeServerModalGate from '../common/WakeServerModalGate';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../services/queryKeys';
 
@@ -20,6 +21,8 @@ export default function MyDecksScreen() {
       const { data } = await api.get('/api/decks', { params: { page: 1, limit: 50 } });
       return data as { decks: Deck[] };
     },
+    refetchOnMount: 'always',
+    refetchOnReconnect: true,
   });
   const [visible, setVisible] = useState(false);
   const [name, setName] = useState('');
@@ -79,6 +82,7 @@ export default function MyDecksScreen() {
 
   return (
     <View style={styles.container}>
+      <WakeServerModalGate />
       <View style={styles.headerRow}>
         <Text style={styles.title}>My Decks</Text>
         <Pressable style={styles.createBtn} onPress={() => setVisible(true)}><Text style={styles.createText}>+ New</Text></Pressable>

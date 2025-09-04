@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, Pressable, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { RouteProp, useNavigation } from '@react-navigation/native';
-import { transformCloudinary } from '../../services/image';
+import { transformCloudinary, DEFAULT_CARD_IMAGE_URL } from '../../services/image';
 import colors from '../../themes/colors';
+import WakeServerModalGate from '../common/WakeServerModalGate';
 import api from '../../services/api';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../services/queryKeys';
+import ModalBase from '../common/ModalBase';
+import LabeledInput from '../common/LabeledInput';
 
 type Props = {
   route: RouteProp<{ MyCardDetail: { cardId: string } }, 'MyCardDetail'>;
@@ -30,7 +33,7 @@ export default function MyCardDetailScreen({ route }: Props) {
   const { cardId } = route.params;
   const navigation = useNavigation<any>();
   const queryClient = useQueryClient();
-  const { data: card, isLoading: loading } = useQuery({
+  const { data: card, isLoading: loading, refetch } = useQuery({
     queryKey: queryKeys.card(cardId),
     queryFn: async () => {
       const { data } = await api.get(`/api/cards/${cardId}`);
@@ -70,20 +73,94 @@ export default function MyCardDetailScreen({ route }: Props) {
     }
   };
 
+  // Edit modal state
+  const [editVisible, setEditVisible] = useState(false);
+  const [name, setName] = useState('');
+  const [definition, setDefinition] = useState('');
+  const [wordType, setWordType] = useState('');
+  const [hint, setHint] = useState('');
+  const [categories, setCategories] = useState('');
+  // Pull-to-refresh state must be declared before any conditional returns to respect Hooks order
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await Haptics.selectionAsync();
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (card) {
+      setName(card.name || '');
+      setDefinition(card.definition || '');
+      setWordType(card.word_type || '');
+      setHint(card.hint || '');
+      setCategories((card.category || []).join(', '));
+    }
+  }, [card?._id]);
+
+  const saveEdits = async () => {
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await api.patch(`/api/cards/${cardId}`, {
+        name: name.trim(),
+        definition: definition.trim(),
+        word_type: wordType.trim(),
+        hint: hint.trim(),
+        category: categories.split(',').map((s) => s.trim()).filter(Boolean),
+      });
+      setEditVisible(false);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.card(cardId) });
+      await queryClient.invalidateQueries({ queryKey: ['deck-cards'] as any });
+      await queryClient.invalidateQueries({ queryKey: ['search-cards'] as any });
+      Alert.alert('Updated', 'Card updated');
+    } catch (e) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Update failed', 'Please try again');
+    }
+  };
+
+  const deleteCard = async () => {
+    Alert.alert('Delete card', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          await api.delete(`/api/cards/${cardId}`);
+          await queryClient.invalidateQueries({ queryKey: ['deck-cards'] as any });
+          await queryClient.invalidateQueries({ queryKey: ['search-cards'] as any });
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert('Deleted', 'Card removed successfully');
+          navigation.goBack();
+        } catch (e) {
+          Alert.alert('Delete failed');
+        }
+      } }
+    ]);
+  };
+
   if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
   if (!card) return <View style={styles.center}><Text>Card not found.</Text></View>;
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView
+      contentContainerStyle={styles.container}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    >
+      <WakeServerModalGate />
       <Text style={styles.title}>{card.name} {card.word_type ? `(${card.word_type})` : ''}</Text>
       {freqInfo && (
         <View style={[styles.freqBadge, { borderColor: freqInfo.color, backgroundColor: '#fff' }]}>
           <Text style={[styles.freqText, { color: freqInfo.color }]}>{freqInfo.text}</Text>
         </View>
       )}
-      {!!card.url && (
-        <Image source={{ uri: transformCloudinary(card.url, { w: 800, q: 'auto', f: 'auto' }) || card.url }} style={styles.image} />
-      )}
+      {(() => {
+        const raw = card.url && card.url.trim() ? card.url : DEFAULT_CARD_IMAGE_URL;
+        const uri = transformCloudinary(raw, { w: 800, q: 'auto', f: 'auto' }) || raw;
+        return <Image source={{ uri }} style={styles.image} />;
+      })()}
       <Text style={styles.block}><Text style={styles.label}>Definition: </Text>{card.definition}</Text>
       {!!card.category?.length && (
         <Text style={styles.block}><Text style={styles.label}>Category: </Text>{card.category.join(', ')}</Text>
@@ -101,6 +178,12 @@ export default function MyCardDetailScreen({ route }: Props) {
       )}
 
       <Pressable style={styles.primaryBtn} onPress={pickAndUploadImage}><Text style={styles.primaryText}>Change image</Text></Pressable>
+      <Pressable style={[styles.primaryBtn, { marginTop: 8, backgroundColor: colors.orange }]} onPress={() => setEditVisible(true)}>
+        <Text style={styles.primaryText}>Edit</Text>
+      </Pressable>
+      <Pressable style={[styles.primaryBtn, { marginTop: 8, backgroundColor: '#EF4444' }]} onPress={deleteCard}>
+        <Text style={styles.primaryText}>Delete</Text>
+      </Pressable>
       <Pressable
         style={[styles.primaryBtn, { marginTop: 8, backgroundColor: card.isArchived ? colors.primary : colors.orange }]}
         onPress={async () => {
@@ -117,6 +200,19 @@ export default function MyCardDetailScreen({ route }: Props) {
       >
         <Text style={styles.primaryText}>{card?.isArchived ? 'Bring back to sessions' : 'Remove from future sessions'}</Text>
       </Pressable>
+
+      {/* Edit Card Modal */}
+      <ModalBase visible={editVisible} onRequestClose={() => setEditVisible(false)}>
+        <Text style={{ fontWeight: '900', fontSize: 16, marginBottom: 8 }}>Edit Card</Text>
+        <ScrollView style={{ maxHeight: 420 }}>
+          <LabeledInput label="Name" value={name} onChangeText={setName} placeholder="Word" />
+          <LabeledInput label="Definition" value={definition} onChangeText={setDefinition} placeholder="Meaning" />
+          <LabeledInput label="Word Type" value={wordType} onChangeText={setWordType} placeholder="e.g. noun" />
+          <LabeledInput label="Hint" value={hint} onChangeText={setHint} placeholder="Optional hint" />
+          <LabeledInput label="Categories" value={categories} onChangeText={setCategories} placeholder="comma,separated,cats" />
+          <Pressable style={[styles.primaryBtn, { marginTop: 8 }]} onPress={saveEdits}><Text style={styles.primaryText}>Save</Text></Pressable>
+        </ScrollView>
+      </ModalBase>
     </ScrollView>
   );
 }
@@ -143,6 +239,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 22, fontWeight: '900' },
   image: { width: '100%', height: 220, borderRadius: 12, borderWidth: 2, borderColor: colors.border, marginTop: 12 },
+  placeholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f0f0' },
+  placeholderText: { color: colors.subtext, fontWeight: '900' },
   block: { marginTop: 12 },
   label: { fontWeight: '900' },
   primaryBtn: { marginTop: 16, backgroundColor: colors.primary, borderWidth: 2, borderColor: colors.border, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },

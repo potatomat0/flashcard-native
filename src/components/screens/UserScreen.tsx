@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert, ScrollView } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import * as Haptics from 'expo-haptics';
 import colors from '../../themes/colors';
+import WakeServerModalGate from '../common/WakeServerModalGate';
 import ModalBase from '../common/ModalBase';
 import LabeledInput from '../common/LabeledInput';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function UserScreen() {
-  const { user, logout, updateProfile, deleteAccount } = useAuth();
+  const { user, logout, updateProfile, deleteAccount, refreshProfile } = useAuth();
   const [editVisible, setEditVisible] = useState(false);
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
@@ -15,8 +17,18 @@ export default function UserScreen() {
   const [currentPwd, setCurrentPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
+
+  // Refresh profile whenever this screen gains focus to ensure email is present
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile().catch(() => {});
+      // No cleanup needed
+      return () => {};
+    }, [refreshProfile])
+  );
   return (
     <View style={styles.container}>
+      <WakeServerModalGate />
       <Text style={styles.title}>Account</Text>
       <View style={styles.card}>
         <Text style={styles.label}>Username</Text>

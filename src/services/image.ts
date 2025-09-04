@@ -6,6 +6,9 @@ export type CloudinaryTransform = {
   c?: 'fill' | 'fit' | 'scale' | 'thumb' | string;
 };
 
+// Backend default image for cards when URL is empty/undefined
+export const DEFAULT_CARD_IMAGE_URL = 'https://res.cloudinary.com/dobaislqr/image/upload/v1755423363/My%20Brand/UIT-Logo_dfkwli.png';
+
 export function transformCloudinary(url?: string, opts: CloudinaryTransform = {}): string | undefined {
   if (!url) return url;
   try {
@@ -35,4 +38,3 @@ export function transformCloudinary(url?: string, opts: CloudinaryTransform = {}
     return url;
   }
 }
-

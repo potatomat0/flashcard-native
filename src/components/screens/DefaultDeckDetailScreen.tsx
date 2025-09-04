@@ -5,6 +5,7 @@ import { MainStackParamList } from '../../navigation/RootNavigator';
 import api from '../../services/api';
 import * as Haptics from 'expo-haptics';
 import colors from '../../themes/colors';
+import WakeServerModalGate from '../common/WakeServerModalGate';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../services/queryKeys';
 
@@ -75,6 +76,7 @@ export default function DefaultDeckDetailScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
+      <WakeServerModalGate />
       <View style={styles.topBar}>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>{deckQuery.data?.name || 'Default Deck'}</Text>

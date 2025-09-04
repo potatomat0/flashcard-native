@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import api, { setAuthToken, clearAuthToken } from '../services/api';
+import { clearQueryCachePersist } from '../services/query';
 
 type User = {
   id: string;
@@ -68,7 +69,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     await SecureStore.setItemAsync(TOKEN_KEY, t);
     setToken(t);
     setAuthToken(t);
-    setUser({ id: data.user.id, username: data.user.username, name: data.user.name });
+    try {
+      const prof = await api.get('/api/users/profile');
+      setUser({ id: prof.data._id, username: prof.data.username, name: prof.data.name, email: prof.data.email });
+    } catch {
+      // Fallback to minimal user from login payload if profile fetch fails
+      setUser({ id: data.user.id, username: data.user.username, name: data.user.name });
+    }
   }, []);
 
   const register = useCallback(async (payload: { username: string; name: string; email: string; password: string }) => {
@@ -82,6 +89,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     clearAuthToken();
     setToken(null);
     setUser(null);
+    await clearQueryCachePersist();
   }, []);
 
   const refreshProfile = useCallback(async () => {

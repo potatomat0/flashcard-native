@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert, Keyboard, TextInput } from 'react-native';
 import { RouteProp, useNavigation } from '@react-navigation/native';
 import colors from '../../themes/colors';
+import WakeServerModalGate from '../common/WakeServerModalGate';
 import api from '../../services/api';
 
 type Props = {
@@ -52,6 +53,7 @@ export default function MyDeckReviewSetupScreen({ route }: Props) {
 
   return (
     <View style={styles.container}>
+      <WakeServerModalGate />
       <Text style={styles.title}>Configure Session</Text>
       <NumberField label="Flashcard" value={flashcard} onChangeText={setFlashcard} onClear={() => setFlashcard('')} />
       <NumberField label="Multiple Choice" value={mcq} onChangeText={setMcq} onClear={() => setMcq('')} />
