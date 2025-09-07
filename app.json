@@ -26,6 +26,9 @@
         "projectId": "c3b9e316-84ff-4f5b-94a3-e58244fdae14"
       }
     },
-    "owner": "kapph"
+    "owner": "kapph",
+    "plugins": [
+      "expo-font"
+    ]
   }
 }
