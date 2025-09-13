@@ -82,6 +82,11 @@
   - Placeholders: subtle subtext; `placeholderTextColor` set to theme `subtext` (better contrast).
   - Account screen: full-width button rows, vertically stacked, centered labels.
 
+### Recent UI Enhancements
+- Auth: Centered logo at top of Login and Register (asset at `src/logo.png`).
+- Keyboard: Auth screens wrapped in `KeyboardAvoidingView` + `ScrollView` to keep inputs visible; tap-outside dismiss retained.
+- Modals: `ModalBase` uses `KeyboardAvoidingView` so all modal forms avoid keyboard overlap (edit profile, change password, create/edit deck/card).
+
 ## Screens
 - Dashboard: Lists default decks (2-column grid), images transformed via Cloudinary helper.
 - Default Deck/Card: Detail and card list (with pagination) from static endpoints; save-to-user-deck action; clone default deck.
@@ -152,4 +157,3 @@
 - Add feature flags for toggling persistence strategies if future endpoints become semi-dynamic.
 
 This overview is intended as a newcomer-friendly map to the codebase: what’s used, why decisions were made, and how to work within the established patterns to deliver features quickly and safely.
-

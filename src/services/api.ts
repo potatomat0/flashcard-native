@@ -4,12 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 const BASE_URL = 'https://flashcard-rs95.onrender.com';
 const TOKEN_KEY = 'flashcard_token';
 
-const api = axios.create({
-  baseURL: BASE_URL,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
+const api = axios.create({ baseURL: BASE_URL });
 
 export function setAuthToken(token: string) {
   api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -26,6 +21,15 @@ api.interceptors.request.use(async (config) => {
     if (token) {
       config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  // Ensure multipart/form-data requests can set their own boundary
+  const data: any = config.data as any;
+  const isFormData = data && (typeof FormData !== 'undefined' && data instanceof FormData || data._parts);
+  if (isFormData) {
+    if (config.headers) {
+      delete (config.headers as any)['Content-Type'];
+      delete (config.headers as any)['content-type'];
     }
   }
   return config;

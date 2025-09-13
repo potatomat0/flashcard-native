@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, Keyboard } from 'react-native';
+import {Image, View, Text, StyleSheet, Pressable, Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { AuthStackParamList } from '../../navigation/RootNavigator';
 import { useAuth } from '../../context/AuthContext';
@@ -83,18 +83,21 @@ export default function RegisterScreen({ navigation }: Props) {
 
   return (
     <DismissKeyboardView style={styles.container}>
-      <ModalBase visible={wakeupVisible} onRequestClose={() => {}}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={24}>
+        <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+      <ModalBase visible={wakeupVisible} onRequestClose={() => setWakeupVisible(false)}>
         <View style={{ alignItems: 'center', gap: 10 }}>
           <ActivityIndicator size="large" color="#000" />
           <Text style={{ fontWeight: '900', textAlign: 'center' }}>The server is waking up, please wait for a minute…</Text>
         </View>
       </ModalBase>
+      <Image source={require('../../logo.png')} style={styles.logo} />
       <Text style={styles.title}>Register</Text>
       <Text style={styles.subtitle}>Create a new account</Text>
 
       <LabeledInput
         label="Username"
-        placeholder="johndoe"
+        placeholder="Enter your username"
         value={username}
         onChangeText={setUsername}
         autoCapitalize="none"
@@ -105,7 +108,7 @@ export default function RegisterScreen({ navigation }: Props) {
       />
       <LabeledInput
         label="Name"
-        placeholder="John Doe"
+        placeholder="Nguyen Van A"
         value={name}
         onChangeText={setName}
         error={name ? nameError : null}
@@ -145,12 +148,16 @@ export default function RegisterScreen({ navigation }: Props) {
       >
         <Text style={styles.buttonText}>{loading ? 'Creating…' : 'Register'}</Text>
       </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </DismissKeyboardView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, alignItems: 'stretch', justifyContent: 'center', backgroundColor: colors.bg },
+  form: { flexGrow: 1, justifyContent: 'center' },
+  logo: { width: 120, height: 120, alignSelf: 'center', marginBottom: 12, resizeMode: 'contain' },
   title: { fontSize: 32, fontWeight: '900', marginBottom: 6, textAlign: 'center' },
   subtitle: { fontSize: 14, textAlign: 'center', marginBottom: 24, color: '#333' },
   button: {

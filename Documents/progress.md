@@ -4,6 +4,7 @@ This document tracks major milestones for the React Native app. Minor UI tweaks 
 
 ## Log
 
+- 2025-09-11: UI enhancements — added centered logo to Login/Register (`src/logo.png` via static require); wrapped auth screens in `KeyboardAvoidingView` + `ScrollView` to prevent keyboard overlap; updated `ModalBase` to avoid keyboard across all modal forms.
 - 2025-08-31: Expo TS scaffold under `React-Native/` with navigation and auth context.
 - 2025-08-31: Implement Login, Register, and Dashboard with JWT handling and secure storage.
 - 2025-08-31: UI pass for Login/Register (neo-brutalist), labeled inputs, validation.

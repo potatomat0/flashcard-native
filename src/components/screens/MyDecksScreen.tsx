@@ -1,16 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, Alert, TextInput, ActivityIndicator, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, Alert, TextInput, ActivityIndicator, Keyboard, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import api from '../../services/api';
 import ModalBase from '../common/ModalBase';
 import LabeledInput from '../common/LabeledInput';
 import * as Haptics from 'expo-haptics';
 import colors from '../../themes/colors';
+import { transformCloudinary } from '../../services/image';
+import * as ImagePicker from 'expo-image-picker';
 import WakeServerModalGate from '../common/WakeServerModalGate';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../services/queryKeys';
+import { uploadImage } from '../../services/upload';
 
-type Deck = { _id: string; name: string; description?: string };
+type Deck = { _id: string; name: string; description?: string; url?: string };
 type Card = { _id: string; name: string; definition: string; word_type?: string };
 
 export default function MyDecksScreen() {
@@ -27,6 +30,7 @@ export default function MyDecksScreen() {
   const [visible, setVisible] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [deckUrl, setDeckUrl] = useState('');
   const navigation = useNavigation<any>();
   // Search state (live-as-you-type)
   const [query, setQuery] = useState('');
@@ -58,7 +62,7 @@ export default function MyDecksScreen() {
   const searchTotalPages = searchData?.totalPages || 1;
 
   const createDeckMutation = useMutation({
-    mutationFn: async (payload: { name: string; description?: string }) => {
+    mutationFn: async (payload: { name: string; description?: string; url?: string }) => {
       await api.post('/api/decks', payload);
     },
     onSuccess: async () => {
@@ -70,13 +74,42 @@ export default function MyDecksScreen() {
     if (!name.trim()) return;
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await createDeckMutation.mutateAsync({ name: name.trim(), description: description.trim() });
+      const payload: { name: string; description?: string; url?: string } = { name: name.trim() };
+      if (description.trim()) payload.description = description.trim();
+      if (deckUrl.trim()) payload.url = deckUrl.trim();
+      await createDeckMutation.mutateAsync(payload);
       setVisible(false);
       setName('');
       setDescription('');
+      setDeckUrl('');
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Create failed', e?.response?.data?.message || 'Please try again');
+    }
+  };
+
+  const pickDeckImage = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission required', 'Please allow access to your photos to upload an image.');
+        return;
+      }
+      const MP: any = ImagePicker as any;
+      const pickerOptions: any = { allowsEditing: true, quality: 0.85 };
+      if (MP?.MediaType?.Images) pickerOptions.mediaTypes = MP.MediaType.Images;
+      else if (MP?.MediaTypeOptions?.Images) pickerOptions.mediaTypes = MP.MediaTypeOptions.Images;
+      const res = await ImagePicker.launchImageLibraryAsync(pickerOptions);
+      if (res.canceled || !res.assets?.length) return;
+      const asset = res.assets[0];
+      await Haptics.selectionAsync();
+      const url = await uploadImage({ uri: asset.uri, fileName: (asset as any).fileName, mimeType: (asset as any).mimeType });
+      setDeckUrl(url);
+      Alert.alert('Image selected', 'The deck image will be used when you create it.');
+    } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      const msg = e?.response?.data?.message || e?.message || 'Please try again';
+      Alert.alert('Upload failed', msg);
     }
   };
 
@@ -156,20 +189,39 @@ export default function MyDecksScreen() {
           data={decks}
           keyExtractor={(d) => d._id}
           renderItem={({ item }) => (
-            <Pressable style={styles.row} onPress={() => navigation.navigate('MyDeckDetail', { deckId: item._id })}>
-              <Text style={{ fontWeight: '900' }}>{item.name}</Text>
-              {!!item.description && <Text style={{ color: '#333' }}>{item.description}</Text>}
+            <Pressable style={styles.card} onPress={() => navigation.navigate('MyDeckDetail', { deckId: item._id })}>
+              {item.url ? (
+                <Image source={{ uri: transformCloudinary(item.url, { w: 400, q: 'auto', f: 'auto', c: 'fill' }) || item.url }} style={styles.image} />
+              ) : (
+                <View style={[styles.image, styles.imagePlaceholder]} />
+              )}
+              <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
+              {!!item.description && <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>}
             </Pressable>
           )}
-          ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+          numColumns={2}
+          columnWrapperStyle={{ gap: 12 }}
           contentContainerStyle={{ paddingVertical: 8 }}
           refreshing={loading}
           onRefresh={() => queryClient.invalidateQueries({ queryKey: queryKeys.decks() })}
+          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
         />
       )}
 
       <ModalBase visible={visible} onRequestClose={() => setVisible(false)}>
         <Text style={{ fontWeight: '900', fontSize: 16, marginBottom: 8 }}>Create Deck</Text>
+        {deckUrl ? (
+          <Image
+            source={{ uri: transformCloudinary(deckUrl, { w: 800, q: 'auto', f: 'auto', c: 'fill' }) || deckUrl }}
+            style={{ width: '100%', aspectRatio: 16/9, borderRadius: 10, borderWidth: 2, borderColor: colors.border, marginBottom: 8 }}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={{ width: '100%', aspectRatio: 16/9, borderRadius: 10, borderWidth: 2, borderColor: colors.border, backgroundColor: '#e5e5e5', marginBottom: 8 }} />
+        )}
+        <Pressable style={[styles.createBtn, { marginBottom: 10 }]} onPress={pickDeckImage}>
+          <Text style={styles.createText}>Choose Image</Text>
+        </Pressable>
         <LabeledInput label="Name" placeholder="My Awesome Deck" value={name} onChangeText={setName} />
         <LabeledInput label="Description" placeholder="What is this deck about?" value={description} onChangeText={setDescription} />
         <Pressable style={styles.createBtn} onPress={createDeck}><Text style={styles.createText}>Create</Text></Pressable>
@@ -192,4 +244,9 @@ const styles = StyleSheet.create({
   pillBtn: { borderWidth: 2, borderColor: colors.border, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, backgroundColor: colors.white },
   pillDisabled: { opacity: 0.5 },
   pillText: { fontWeight: '800' },
+  card: { flex: 1, borderWidth: 2, borderColor: colors.border, borderRadius: 12, padding: 8, backgroundColor: colors.white },
+  image: { width: '100%', aspectRatio: 16/9, borderRadius: 8, marginBottom: 8 },
+  imagePlaceholder: { backgroundColor: '#e5e5e5', borderWidth: 2, borderColor: colors.border, width: '100%', aspectRatio: 16/9, borderRadius: 8, marginBottom: 8 },
+  cardTitle: { fontWeight: '900', fontSize: 14 },
+  cardDesc: { fontSize: 12, color: colors.subtext },
 });

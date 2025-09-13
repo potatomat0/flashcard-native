@@ -46,7 +46,7 @@ export default function WakeServerModalGate() {
   }, []);
 
   return (
-    <ModalBase visible={visible} onRequestClose={() => {}}>
+    <ModalBase visible={visible} onRequestClose={() => setVisible(false)}>
       <View style={{ alignItems: 'center', gap: 10 }}>
         <ActivityIndicator size="large" color="#000" />
         <Text style={{ fontWeight: '900', textAlign: 'center' }}>The server is waking up, please wait for a minute…</Text>
@@ -54,4 +54,3 @@ export default function WakeServerModalGate() {
     </ModalBase>
   );
 }
-

@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { RouteProp } from '@react-navigation/native';
 import { MainStackParamList } from '../../navigation/RootNavigator';
 import api from '../../services/api';
 import * as Haptics from 'expo-haptics';
 import colors from '../../themes/colors';
 import WakeServerModalGate from '../common/WakeServerModalGate';
+import ModalBase from '../common/ModalBase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../services/queryKeys';
 
@@ -44,6 +46,59 @@ export default function DefaultDeckDetailScreen({ route, navigation }: Props) {
     staleTime: 24 * 60 * 60 * 1000,
   });
 
+  // Multi-select state for adding multiple default cards to personal deck
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [saveVisible, setSaveVisible] = useState(false);
+  const [userDecks, setUserDecks] = useState<Array<{ _id: string; name: string }>>([]);
+  const [loadingDecks, setLoadingDecks] = useState(false);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const openDeckPicker = async () => {
+    if (selectedIds.size === 0) return;
+    setSaveVisible(true);
+    setLoadingDecks(true);
+    try {
+      const { data } = await api.get('/api/decks', { params: { page: 1, limit: 50 } });
+      setUserDecks(data.decks || []);
+    } catch (e) {
+      Alert.alert('Failed to load your decks');
+      setSaveVisible(false);
+    } finally {
+      setLoadingDecks(false);
+    }
+  };
+
+  const addSelectedToMyDeck = async (targetDeckId: string) => {
+    if (selectedIds.size === 0) return;
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const ids = Array.from(selectedIds);
+      // Follow existing working endpoints (also used in other screens)
+      const body: any = { defaultCardId: ids };
+      await api.post(`/api/decks/${targetDeckId}/cards/from-default`, body);
+      setSaveVisible(false);
+      Alert.alert('Added', `Added ${ids.length} card(s) to your deck`);
+      clearSelection();
+      setSelecting(false);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.deckCards(targetDeckId, 1, 10) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.decks() });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.deck(targetDeckId) });
+    } catch (e: any) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Add failed', e?.response?.data?.message || e?.message || 'Please try again');
+    }
+  };
+
   const cloneDeck = async () => {
     try {
       Haptics.selectionAsync();
@@ -56,23 +111,41 @@ export default function DefaultDeckDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const renderItem = ({ item }: { item: Card }) => (
-    <Pressable
-      onPress={() => {
-        Haptics.selectionAsync();
-        navigation.navigate('DefaultCard', { deckId, cardId: item._id });
-      }}
-      style={styles.cardRow}
-    >
-      <Text style={styles.cardTitle} numberOfLines={1}>
-        {item.name} {item.word_type ? `(${item.word_type})` : ''}
-      </Text>
-      <Text style={styles.cardDef} numberOfLines={2}>{item.definition}</Text>
-      {!!item.category?.length && (
-        <Text style={styles.cardCat} numberOfLines={1}>Category: {item.category.join(', ')}</Text>
-      )}
-    </Pressable>
-  );
+  const renderItem = ({ item }: { item: Card }) => {
+    const isSelected = selectedIds.has(item._id);
+    return (
+      <Pressable
+        onPress={() => {
+          Haptics.selectionAsync();
+          if (selecting) {
+            toggleSelect(item._id);
+          } else {
+            navigation.navigate('DefaultCard', { deckId, cardId: item._id });
+          }
+        }}
+        style={[styles.cardRow, selecting && { flexDirection: 'row', alignItems: 'center' }]}
+      >
+        {selecting && (
+          <Pressable
+            onPress={() => toggleSelect(item._id)}
+            style={[styles.checkBox, isSelected && styles.checkBoxSelected]}
+            accessibilityLabel={isSelected ? 'Deselect card' : 'Select card'}
+          >
+            {isSelected && <Ionicons name="checkmark" size={16} color="#000" />}
+          </Pressable>
+        )}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle} numberOfLines={1}>
+            {item.name} {item.word_type ? `(${item.word_type})` : ''}
+          </Text>
+          <Text style={styles.cardDef} numberOfLines={2}>{item.definition}</Text>
+          {!!item.category?.length && (
+            <Text style={styles.cardCat} numberOfLines={1}>Category: {item.category.join(', ')}</Text>
+          )}
+        </View>
+      </Pressable>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -83,10 +156,50 @@ export default function DefaultDeckDetailScreen({ route, navigation }: Props) {
           {deckQuery.data?.description ? <Text style={styles.subtitle}>{deckQuery.data.description}</Text> : null}
         </View>
         <View style={{ gap: 8 }}>
-          <Pressable style={styles.actionBtn} onPress={cloneDeck}><Text style={styles.actionText}>Clone</Text></Pressable>
-          <Pressable style={styles.actionBtn} onPress={() => navigation.navigate('DefaultReview', { deckId })}><Text style={styles.actionText}>Start Review</Text></Pressable>
+          {!selecting ? (
+            <>
+              <Pressable style={styles.actionBtn} onPress={cloneDeck}><Text style={styles.actionText}>Clone</Text></Pressable>
+              <Pressable style={styles.actionBtn} onPress={() => navigation.navigate('DefaultReview', { deckId })}><Text style={styles.actionText}>Start Review</Text></Pressable>
+              <Pressable style={[styles.actionBtn, styles.selectBtn]} onPress={() => { setSelecting(true); clearSelection(); }}>
+                <Text style={styles.actionText}>Select Cards</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Pressable
+                disabled={selectedIds.size === 0}
+                style={[styles.actionBtn, styles.addBtn, selectedIds.size === 0 && { opacity: 0.6 }]}
+                onPress={openDeckPicker}
+              >
+                <Text style={styles.actionText}>Add Selected ({selectedIds.size})</Text>
+              </Pressable>
+              <Pressable style={[styles.actionBtn, styles.cancelBtn]} onPress={() => { setSelecting(false); clearSelection(); }}>
+                <Text style={styles.actionText}>Cancel</Text>
+              </Pressable>
+            </>
+          )}
         </View>
       </View>
+      {/* Deck picker for multi-add */}
+      <ModalBase visible={saveVisible} onRequestClose={() => setSaveVisible(false)}>
+        <Text style={{ fontWeight: '900', fontSize: 16, marginBottom: 8 }}>Choose a deck</Text>
+        {loadingDecks ? (
+          <ActivityIndicator />
+        ) : userDecks.length === 0 ? (
+          <View>
+            <Text style={{ marginBottom: 8 }}>You have no deck.</Text>
+            <Pressable onPress={() => { setSaveVisible(false); navigation.getParent()?.navigate('My Decks'); }} style={styles.actionBtn}><Text style={styles.actionText}>Create deck</Text></Pressable>
+          </View>
+        ) : (
+          <View>
+            {userDecks.map((d) => (
+              <Pressable key={d._id} style={[styles.cardRow, { marginBottom: 8 }]} onPress={() => addSelectedToMyDeck(d._id)}>
+                <Text style={{ fontWeight: '800' }}>{d.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </ModalBase>
 
       {deckQuery.isLoading ? (
         <ActivityIndicator />
@@ -143,4 +256,9 @@ const styles = StyleSheet.create({
   pillBtn: { borderWidth: 2, borderColor: colors.border, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, backgroundColor: colors.white },
   pillDisabled: { opacity: 0.5 },
   pillText: { fontWeight: '800' },
+  checkBox: { width: 24, height: 24, borderWidth: 2, borderColor: colors.border, borderRadius: 6, marginRight: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white },
+  checkBoxSelected: { backgroundColor: colors.primary },
+  selectBtn: { backgroundColor: colors.white },
+  addBtn: { backgroundColor: colors.primary },
+  cancelBtn: { backgroundColor: colors.orange },
 });

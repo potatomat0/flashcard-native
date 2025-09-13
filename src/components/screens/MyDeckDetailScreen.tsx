@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, Alert, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { RouteProp, useNavigation } from '@react-navigation/native';
 import api from '../../services/api';
@@ -12,12 +12,15 @@ import WakeServerModalGate from '../common/WakeServerModalGate';
 import * as ImagePicker from 'expo-image-picker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../services/queryKeys';
+import { DEFAULT_CARD_IMAGE_URL, transformCloudinary } from '../../services/image';
+import { getImageSourceForUrl } from '../../services/imageCache';
+import { uploadImage } from '../../services/upload';
 
 type Props = {
   route: RouteProp<{ MyDeckDetail: { deckId: string } }, 'MyDeckDetail'>;
 };
 
-type Deck = { _id: string; name: string; description?: string };
+type Deck = { _id: string; name: string; description?: string; url?: string };
 type Card = {
   _id: string;
   name: string;
@@ -44,6 +47,7 @@ export default function MyDeckDetailScreen({ route }: Props) {
   const [deckModal, setDeckModal] = useState(false);
   const [dName, setDName] = useState('');
   const [dDesc, setDDesc] = useState('');
+  const [dUrl, setDUrl] = useState('');
 
   // Card create/edit modal
   const [cardModal, setCardModal] = useState<{ visible: boolean; editing?: Card | null }>({ visible: false, editing: null });
@@ -59,6 +63,7 @@ export default function MyDeckDetailScreen({ route }: Props) {
   const openEditDeck = () => {
     setDName(deck?.name || '');
     setDDesc(deck?.description || '');
+    setDUrl(deck?.url || '');
     setDeckModal(true);
   };
 
@@ -98,13 +103,40 @@ export default function MyDeckDetailScreen({ route }: Props) {
   const updateDeck = async () => {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await api.patch(`/api/decks/${deckId}`, { name: dName.trim(), description: dDesc.trim() });
+      const payload: any = { name: dName.trim(), description: dDesc.trim() };
+      if (dUrl && dUrl.trim()) payload.url = dUrl.trim();
+      await api.patch(`/api/decks/${deckId}`, payload);
       setDeckModal(false);
       await queryClient.invalidateQueries({ queryKey: queryKeys.deck(deckId) });
       await queryClient.invalidateQueries({ queryKey: queryKeys.decks() });
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Update failed', e?.response?.data?.message || 'Please try again');
+    }
+  };
+  
+  const pickDeckImage = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission required', 'Please allow access to your photos to upload an image.');
+        return;
+      }
+      const MP: any = ImagePicker as any;
+      const pickerOptions: any = { allowsEditing: true, quality: 0.85 };
+      if (MP?.MediaType?.Images) pickerOptions.mediaTypes = MP.MediaType.Images;
+      else if (MP?.MediaTypeOptions?.Images) pickerOptions.mediaTypes = MP.MediaTypeOptions.Images;
+      const res = await ImagePicker.launchImageLibraryAsync(pickerOptions);
+      if (res.canceled || !res.assets?.length) return;
+      const asset = res.assets[0];
+      await Haptics.selectionAsync();
+      const url = await uploadImage({ uri: asset.uri, fileName: (asset as any).fileName, mimeType: (asset as any).mimeType });
+      setDUrl(url);
+      Alert.alert('Image selected', 'The deck image will be updated when you save.');
+    } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      const msg = e?.response?.data?.message || e?.message || 'Please try again';
+      Alert.alert('Upload failed', msg);
     }
   };
 
@@ -174,23 +206,19 @@ export default function MyDeckDetailScreen({ route }: Props) {
   const pickAndUploadImage = async () => {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (perm.status !== 'granted') {
+      if (!perm.granted) {
         Alert.alert('Permission required', 'Please allow access to your photos to upload an image.');
         return;
       }
-      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.8 });
+      const MP: any = ImagePicker as any;
+      const pickerOptions2: any = { allowsEditing: true, quality: 0.8 };
+      if (MP?.MediaType?.Images) pickerOptions2.mediaTypes = MP.MediaType.Images;
+      else if (MP?.MediaTypeOptions?.Images) pickerOptions2.mediaTypes = MP.MediaTypeOptions.Images;
+      const res = await ImagePicker.launchImageLibraryAsync(pickerOptions2);
       if (res.canceled || !res.assets?.length) return;
       const asset = res.assets[0];
-      const form = new FormData();
-      form.append('image', {
-        uri: asset.uri,
-        // Try to infer a filename and type; fall back to jpeg
-        name: asset.fileName || 'upload.jpg',
-        type: asset.mimeType || 'image/jpeg',
-      } as any);
       await Haptics.selectionAsync();
-      const { data } = await api.post('/api/upload', form as any, { headers: { 'Content-Type': 'multipart/form-data' } });
-      const url = data.filePath;
+      const url = await uploadImage({ uri: asset.uri, fileName: (asset as any).fileName, mimeType: (asset as any).mimeType });
       setCUrl(url);
       if (cardModal.editing) {
         // Instantly update the card's image
@@ -203,7 +231,8 @@ export default function MyDeckDetailScreen({ route }: Props) {
       }
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Upload failed', e?.response?.data?.message || 'Please try again');
+      const msg = e?.response?.data?.message || e?.message || 'Please try again';
+      Alert.alert('Upload failed', msg);
     }
   };
 
@@ -257,10 +286,15 @@ export default function MyDeckDetailScreen({ route }: Props) {
           keyExtractor={(c) => c._id}
           renderItem={({ item }) => (
             <View style={[styles.cardRow, item.isArchived && styles.cardRowArchived]}>
-              <Pressable style={{ flex: 1 }} onPress={() => navigation.navigate('MyCardDetail', { cardId: item._id })}>
-                <Text style={[styles.cardTitle, item.isArchived && styles.archivedText]} numberOfLines={1}>{item.name} {item.word_type ? `(${item.word_type})` : ''}</Text>
-                <Text style={[styles.cardDef, item.isArchived && styles.archivedText]} numberOfLines={2}>{item.definition}</Text>
-                {!!item.category?.length && <Text style={[styles.cardCat, item.isArchived && styles.archivedText]} numberOfLines={1}>Category: {item.category.join(', ')}</Text>}
+              <Pressable style={{ flex: 1, flexDirection: 'row', alignItems: 'stretch' }} onPress={() => navigation.navigate('MyCardDetail', { cardId: item._id })}>
+                <View style={styles.thumbWrap}>
+                  <CardThumb url={item.url} archived={!!item.isArchived} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={[styles.cardTitle, item.isArchived && styles.archivedText]} numberOfLines={1}>{item.name} {item.word_type ? `(${item.word_type})` : ''}</Text>
+                  <Text style={[styles.cardDef, item.isArchived && styles.archivedText]} numberOfLines={2}>{item.definition}</Text>
+                  {!!item.category?.length && <Text style={[styles.cardCat, item.isArchived && styles.archivedText]} numberOfLines={1}>Category: {item.category.join(', ')}</Text>}
+                </View>
               </Pressable>
               <View style={{ gap: 8, marginLeft: 8 }}>
                 <Pressable style={[styles.iconBtnSmall, styles.smallBtnEdit]} onPress={() => openEditCard(item)} accessibilityLabel="Edit card">
@@ -301,6 +335,18 @@ export default function MyDeckDetailScreen({ route }: Props) {
       {/* Edit Deck Modal */}
       <ModalBase visible={deckModal} onRequestClose={() => setDeckModal(false)}>
         <Text style={{ fontWeight: '900', fontSize: 16, marginBottom: 8 }}>Edit Deck</Text>
+        {(dUrl || deck?.url) ? (
+          <Image
+            source={{ uri: transformCloudinary(dUrl || deck?.url, { w: 800, q: 'auto', f: 'auto', c: 'fill' }) || (dUrl || deck?.url) }}
+            style={{ width: '100%', aspectRatio: 16/9, borderRadius: 10, borderWidth: 2, borderColor: colors.border, marginBottom: 8 }}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={{ width: '100%', aspectRatio: 16/9, borderRadius: 10, borderWidth: 2, borderColor: colors.border, backgroundColor: '#e5e5e5', marginBottom: 8 }} />
+        )}
+        <Pressable style={[styles.primaryBtn, { marginBottom: 10 }]} onPress={pickDeckImage}>
+          <Text style={styles.primaryText}>Change Image</Text>
+        </Pressable>
         <LabeledInput label="Name" value={dName} onChangeText={setDName} placeholder="Deck name" />
         <LabeledInput label="Description" value={dDesc} onChangeText={setDDesc} placeholder="Description" />
         <Pressable style={styles.primaryBtn} onPress={updateDeck}><Text style={styles.primaryText}>Save</Text></Pressable>
@@ -377,5 +423,30 @@ const styles = StyleSheet.create({
   selectText: { fontSize: 14 },
   selectPlaceholder: { fontSize: 14, color: colors.subtext },
   typeRow: { borderWidth: 2, borderColor: colors.border, backgroundColor: colors.white, borderRadius: 10, padding: 10, marginBottom: 8 },
-  dropdownPanel: { marginTop: 6, borderWidth: 2, borderColor: colors.border, backgroundColor: colors.white, borderRadius: 10, padding: 8 }
+  dropdownPanel: { marginTop: 6, borderWidth: 2, borderColor: colors.border, backgroundColor: colors.white, borderRadius: 10, padding: 8 },
+  thumbWrap: { width: '30%' },
+  thumb: { width: '100%', aspectRatio: 1, borderRadius: 10, backgroundColor: colors.white, borderWidth: 2, borderColor: colors.border }
 });
+
+function CardThumb({ url, archived }: { url?: string; archived: boolean }) {
+  const [source, setSource] = useState<{ uri: string } | undefined>(undefined);
+
+  const thumbUrl = transformCloudinary(url || DEFAULT_CARD_IMAGE_URL, { w: 400, h: 400, c: 'fill', q: 'auto', f: 'auto' }) || (url || DEFAULT_CARD_IMAGE_URL);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const src = await getImageSourceForUrl(thumbUrl);
+      if (mounted) setSource(src);
+    })();
+    return () => { mounted = false; };
+  }, [thumbUrl]);
+
+  return (
+    <Image
+      source={source || { uri: thumbUrl }}
+      style={[styles.thumb, archived && { opacity: 0.75 }]}
+      resizeMode="cover"
+    />
+  );
+}

@@ -22,6 +22,11 @@ Hệ thống cho phép người dùng tạo ra các bộ thẻ học (flashcards
 
 Sản phẩm của đề tài mang ý nghĩa thực tiễn, cung cấp một công cụ linh hoạt, giúp người học củng cố kiến thức một cách bền vững và nâng cao hiệu quả trong việc tự học.
 
+## Cập nhật UI gần đây
+- Thêm logo ứng dụng hiển thị ở đầu các màn hình Đăng nhập/Đăng ký (sử dụng ảnh `src/logo.png`, căn giữa, co giãn không vỡ hình).
+- Ngăn bàn phím che mất ô nhập liệu: các màn hình Đăng nhập/Đăng ký được bọc `KeyboardAvoidingView` + `ScrollView`, cho phép cuộn khi bàn phím mở.
+- Tất cả form trong modal (Chỉnh sửa hồ sơ, Đổi mật khẩu, Tạo/Sửa Bộ thẻ/Thẻ) cũng tránh bàn phím nhờ `KeyboardAvoidingView` tích hợp sẵn trong `ModalBase`.
+
 
 # Giới thiệu lý thuyết và công nghệ sử dụng  
 

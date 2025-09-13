@@ -46,6 +46,7 @@ This document provides an in-depth look at the mobile app’s architecture, libr
     - `WakeServerModalGate.tsx`: Shows a “server waking up” modal if ping > 2s.
   - `charts/`
     - `GroupedBarChart.tsx`: Reusable grouped bar chart (SVG).
+- `src/logo.png`: App logo asset used on auth screens.
 - `src/navigation/RootNavigator.tsx`: Tabs and stacks wiring, green headers.
 - `src/context/AuthContext.tsx`: Auth state, profile hydration, cache clearing.
 - `src/services/`
@@ -191,6 +192,15 @@ This document provides an in-depth look at the mobile app’s architecture, libr
 - Neo-brutalist lean: bold borders, solid fills, bold text.
 - Headers: Green background, compact title set in `RootNavigator.tsx`.
 
+## UI Enhancements — Auth & Keyboard
+- Auth screens (Login, Register)
+  - Show centered logo at top using `require('../../logo.png')` from `src/logo.png`.
+  - Wrapped with `KeyboardAvoidingView` + `ScrollView` to prevent keyboard overlapping inputs; content stays scrollable on small screens.
+  - Retains tap-outside-to-dismiss via `DismissKeyboardView` and Enter/Return to dismiss via `onSubmitEditing`.
+- Global modal forms
+  - `ModalBase.tsx` now wraps content in `KeyboardAvoidingView` so inputs in all modals (Edit Profile, Change Password, Create/Edit Deck/Card, etc.) are not covered by the keyboard.
+  - No per-screen changes needed; benefits propagate to every modal in the app.
+
 ## Error Handling & Resilience
 - Global 401 handler clears token.
 - Queries/mutations wrapped with try/catch and user-friendly alerts.
@@ -215,4 +225,3 @@ This document provides an in-depth look at the mobile app’s architecture, libr
 - Images: `src/services/image.ts`
 - Screens: `src/components/screens/*.tsx`
 - Chart: `src/components/charts/GroupedBarChart.tsx`
-

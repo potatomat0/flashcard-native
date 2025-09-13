@@ -11,6 +11,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../services/queryKeys';
 import ModalBase from '../common/ModalBase';
 import LabeledInput from '../common/LabeledInput';
+import { uploadImage } from '../../services/upload';
 
 type Props = {
   route: RouteProp<{ MyCardDetail: { cardId: string } }, 'MyCardDetail'>;
@@ -50,18 +51,19 @@ export default function MyCardDetailScreen({ route }: Props) {
   const pickAndUploadImage = async () => {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (perm.status !== 'granted') {
+      if (!perm.granted) {
         Alert.alert('Permission required', 'Please allow access to your photos to upload an image.');
         return;
       }
-      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.8 });
+      const MP: any = ImagePicker as any;
+      const pickerOptions: any = { allowsEditing: true, quality: 0.8 };
+      if (MP?.MediaType?.Images) pickerOptions.mediaTypes = MP.MediaType.Images;
+      else if (MP?.MediaTypeOptions?.Images) pickerOptions.mediaTypes = MP.MediaTypeOptions.Images;
+      const res = await ImagePicker.launchImageLibraryAsync(pickerOptions);
       if (res.canceled || !res.assets?.length) return;
       const asset = res.assets[0];
-      const form = new FormData();
-      form.append('image', { uri: asset.uri, name: asset.fileName || 'upload.jpg', type: asset.mimeType || 'image/jpeg' } as any);
       await Haptics.selectionAsync();
-      const { data } = await api.post('/api/upload', form as any, { headers: { 'Content-Type': 'multipart/form-data' } });
-      const url = data.filePath;
+      const url = await uploadImage({ uri: asset.uri, fileName: (asset as any).fileName, mimeType: (asset as any).mimeType });
       await api.patch(`/api/cards/${cardId}`, { url });
       Alert.alert('Updated', 'Card image updated');
       await queryClient.invalidateQueries({ queryKey: queryKeys.card(cardId) });
@@ -69,7 +71,8 @@ export default function MyCardDetailScreen({ route }: Props) {
       await queryClient.invalidateQueries({ queryKey: ['search-cards'] as any });
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Upload failed', e?.response?.data?.message || 'Please try again');
+      const msg = e?.response?.data?.message || e?.message || 'Please try again';
+      Alert.alert('Upload failed', msg);
     }
   };
 
